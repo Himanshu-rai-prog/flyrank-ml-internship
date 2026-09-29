@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Predicting Content Decline for Refresh Prioritization</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      line-height: 1.65;
+      color: #172033;
+      background: #f6f8fb;
+    }
+
+    header {
+      background: linear-gradient(135deg, #172554, #2563eb);
+      color: white;
+      padding: 70px 20px;
+    }
+
+    header .wrap, main, footer {
+      max-width: 1050px;
+      margin: auto;
+    }
+
+    header h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      line-height: 1.1;
+      margin: 0 0 20px;
+    }
+
+    header p {
+      max-width: 780px;
+      font-size: 1.1rem;
+      opacity: .92;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.15);
+      margin-bottom: 18px;
+      font-size: .9rem;
+    }
+
+    main {
+      padding: 35px 20px 70px;
+    }
+
+    section {
+      background: white;
+      padding: 30px;
+      margin: 24px 0;
+      border-radius: 16px;
+      box-shadow: 0 4px 18px rgba(15,23,42,.06);
+    }
+
+    h2 {
+      color: #172554;
+      margin-top: 0;
+      border-bottom: 2px solid #e5e7eb;
+      padding-bottom: 10px;
+    }
+
+    h3 {
+      color: #1d4ed8;
+    }
+
+    .abstract {
+      border-left: 5px solid #2563eb;
+      padding-left: 20px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+
+    .metric {
+      background: #eff6ff;
+      padding: 20px;
+      border-radius: 12px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 1.8rem;
+      color: #1d4ed8;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+      background: #eff6ff;
+    }
+
+    .bar-row {
+      margin: 18px 0;
+    }
+
+    .bar-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .bar {
+      height: 28px;
+      background: #dbeafe;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      background: #2563eb;
+      border-radius: 8px;
+    }
+
+    .note {
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      padding: 15px;
+      margin: 20px 0;
+    }
+
+    .success {
+      background: #ecfdf5;
+      border-left: 4px solid #10b981;
+      padding: 15px;
+      margin: 20px 0;
+    }
+
+    ol li, ul li {
+      margin: 8px 0;
+    }
+
+    code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    a {
+      color: #2563eb;
+      font-weight: 600;
+    }
+
+    footer {
+      padding: 30px 20px 60px;
+      color: #64748b;
+      text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      section {
+        padding: 22px;
+      }
+
+      header {
+        padding: 50px 20px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <div class="wrap">
+    <span class="tag">Machine Learning · FlyRank Internship · ML-11</span>
+
+    <h1>Predicting Content Decline for Refresh Prioritization</h1>
+
+    <p>
+      A transparent baseline and Logistic Regression model for ranking content
+      pages that may require refresh review.
+    </p>
+  </div>
+</header>
+
+<main>
+
+<section>
+  <h2>1. Title + Abstract</h2>
+
+  <div class="abstract">
+    <p>
+      <strong>Question:</strong> Can a machine-learning ranking model identify
+      content pages showing signals of decline more effectively than a simple
+      transparent refresh rule?
+    </p>
+
+    <p>
+      <strong>Data:</strong> The working dataset contains 30,000 anonymized
+      content records with search, engagement, content, and lifecycle features.
+    </p>
+
+    <p>
+      <strong>Method:</strong> I compared a transparent rule-based baseline with
+      a Logistic Regression model that ranks pages using predicted probability
+      of decline.
+    </p>
+
+    <p>
+      <strong>Result:</strong> On the ML-08 held-out test split, the model
+      measured Precision@50 of 0.64 versus 0.52 for the baseline, and
+      Precision@100 of 0.66 versus 0.56.
+    </p>
+
+    <p>
+      <strong>Use:</strong> The result is intended as directional decision
+      support for prioritizing pages for human review, not as evidence that
+      every predicted page should automatically be refreshed.
+    </p>
+  </div>
+</section>
+
+
+<section>
+  <h2>2. Introduction / Problem Statement</h2>
+
+  <p>
+    Content teams often have more pages that could be reviewed than they can
+    manually inspect. A useful ranking system should therefore help identify
+    which pages deserve attention first while remaining understandable enough
+    for a human reviewer to challenge or override the recommendation.
+  </p>
+
+  <p>
+    The specific decision studied here is whether a page should enter a
+    refresh-review queue. The initial baseline deliberately uses a simple
+    lifecycle rule: prioritize pages that are old enough to be considered
+    stale while still receiving meaningful impressions.
+  </p>
+
+  <p>
+    The machine-learning question is whether a model using a broader feature
+    set can produce a more useful top-ranked review queue than that transparent
+    rule.
+  </p>
+</section>
+
+
+<section>
+  <h2>3. Data</h2>
+
+  <div class="metrics">
+    <div class="metric">
+      <strong>30,000</strong>
+      Working records
+    </div>
+
+    <div class="metric">
+      <strong>44</strong>
+      Original columns
+    </div>
+
+    <div class="metric">
+      <strong>34</strong>
+      Model features
+    </div>
+
+    <div class="metric">
+      <strong>32</strong>
+      Clients represented
+    </div>
+  </div>
+
+  <p>
+    The analysis uses the anonymized FlyRank internship content-refresh
+    dataset. The working extract contains 30,000 records and includes fields
+    covering content characteristics, search visibility, engagement,
+    lifecycle information, and model/provider metadata.
+  </p>
+
+  <p>
+    The dataset includes 90-day activity measures such as impressions,
+    clicks, sessions, and users. It also contains recent and previous
+    30-day fields. These fields were reviewed carefully because trend-derived
+    information can create target leakage.
+  </p>
+
+  <h3>Exclusions</h3>
+
+  <ul>
+    <li>
+      <code>content_id</code> and <code>client_id</code> were excluded from
+      model features.
+    </li>
+    <li>
+      <code>trend_direction</code> and <code>trend_pct</code> were excluded
+      because the target is derived from trend direction.
+    </li>
+    <li>
+      Recent and previous 30-day trend-related fields were excluded because
+      they directly describe the observed trend used to construct the label.
+    </li>
+  </ul>
+
+  <div class="note">
+    <strong>Public-safety note:</strong>
+    This page intentionally does not expose client names, private queries,
+    private URLs, or identifying production information.
+  </div>
+</section>
+
+
+<section>
+  <h2>4. Methodology</h2>
+
+  <h3>Label definition</h3>
+
+  <p>
+    The target variable <code>is_declining_label</code> is defined as 1 when
+    <code>trend_direction</code> equals <code>down</code>, and 0 otherwise.
+  </p>
+
+  <h3>Baseline</h3>
+
+  <p>
+    The baseline reviews a page when both conditions are satisfied:
+  </p>
+
+  <ul>
+    <li><code>days_since_last_update &ge; 181</code></li>
+    <li><code>impressions_90d &ge; 500</code></li>
+  </ul>
+
+  <p>
+    The baseline score is <code>impressions_90d</code> when both conditions
+    are true. Its reason code is <code>stale_but_visible</code> and its action
+    is <code>review_refresh</code>.
+  </p>
+
+  <h3>Model</h3>
+
+  <p>
+    The machine-learning model is Logistic Regression. Numerical features are
+    imputed and standardized, while categorical features are imputed and
+    one-hot encoded. The model ranks pages by predicted probability of
+    decline.
+  </p>
+
+  <h3>Validation design</h3>
+
+  <p>
+    The validation audit compared a naive random row split with a
+    client-grouped design. The grouped design keeps pages belonging to the
+    same client on only one side of the split, reducing the risk that
+    client-specific patterns are shared between training and testing.
+  </p>
+
+  <p>
+    The validation audit used 30,000 records, 34 model features, and 32
+    clients. The naive row split contained 24,000 training rows and 6,000
+    test rows.
+  </p>
+
+  <h3>Leakage checks</h3>
+
+  <p>
+    Target-derived trend fields were excluded from the feature matrix.
+    Identifiers were also excluded from model features. The leakage audit
+    reported no remaining candidate leakage fields and passed its checks.
+  </p>
+
+  <div class="success">
+    <strong>Leakage audit:</strong> target-derived fields and identifiers were
+    excluded from the model feature matrix.
+  </div>
+</section>
+
+
+<section>
+  <h2>5. Results</h2>
+
+  <p>
+    The primary model-versus-baseline comparison below uses the held-out
+    ML-08 test split. Both approaches are evaluated with the same
+    Precision@K ranking metrics.
+  </p>
+
+  <div class="metrics">
+    <div class="metric">
+      <strong>0.64</strong>
+      Model Precision@50
+    </div>
+
+    <div class="metric">
+      <strong>0.52</strong>
+      Baseline Precision@50
+    </div>
+
+    <div class="metric">
+      <strong>0.66</strong>
+      Model Precision@100
+    </div>
+
+    <div class="metric">
+      <strong>0.56</strong>
+      Baseline Precision@100
+    </div>
+  </div>
+
+  <h3>Precision@50</h3>
+
+  <div class="bar-row">
+    <div class="bar-label">
+      <span>Baseline</span>
+      <span>0.52</span>
+    </div>
+    <div class="bar">
+      <div class="fill" style="width:52%"></div>
+    </div>
+  </div>
+
+  <div class="bar-row">
+    <div class="bar-label">
+      <span>Logistic Regression</span>
+      <span>0.64</span>
+    </div>
+    <div class="bar">
+      <div class="fill" style="width:64%"></div>
+    </div>
+  </div>
+
+  <p>
+    <strong>Takeaway:</strong> Precision@50 increased from 0.52 to 0.64,
+    a 12-percentage-point difference on the held-out test split.
+  </p>
+
+  <h3>Precision@100</h3>
+
+  <div class="bar-row">
+    <div class="bar-label">
+      <span>Baseline</span>
+      <span>0.56</span>
+    </div>
+    <div class="bar">
+      <div class="fill" style="width:56%"></div>
+    </div>
+  </div>
+
+  <div class="bar-row">
+    <div class="bar-label">
+      <span>Logistic Regression</span>
+      <span>0.66</span>
+    </div>
+    <div class="bar">
+      <div class="fill" style="width:66%"></div>
+    </div>
+  </div>
+
+  <p>
+    <strong>Takeaway:</strong> Precision@100 increased from 0.56 to 0.66,
+    a 10-percentage-point difference on the same evaluation setup.
+  </p>
+
+  <h3>Model error profile</h3>
+
+  <table>
+    <tr>
+      <th>Error type</th>
+      <th>Count</th>
+    </tr>
+    <tr>
+      <td>False positives</td>
+      <td>1,603</td>
+    </tr>
+    <tr>
+      <td>False negatives</td>
+      <td>1,097</td>
+    </tr>
+  </table>
+
+  <p>
+    The model also produced interpretable coefficients. Among the listed
+    high-magnitude features were position tier, users over 90 days, sessions
+    over 90 days, days with impressions, model/provider categories, content
+    type, and main intent. These coefficients describe model associations;
+    they should not be interpreted as proof of causation.
+  </p>
+
+  <div class="note">
+    <strong>Validation note:</strong>
+    A separate naive random-row validation audit produced Precision@50 and
+    Precision@100 of 0.80. Because that design can place pages from the same
+    client in both train and test, it is reported separately rather than used
+    as the primary model claim.
+  </div>
+</section>
+
+
+<section>
+  <h2>6. Limitations & Honest Framing</h2>
+
+  <ul>
+    <li>
+      The results are measured on this dataset and validation setup; they do
+      not establish identical performance on every future client or dataset.
+    </li>
+
+    <li>
+      Precision@K evaluates the quality of the top-ranked queue, not whether
+      a refresh will actually improve business performance.
+    </li>
+
+    <li>
+      A false positive can still be a reasonable human-review candidate.
+      A stale page may be intentionally evergreen or may receive low-quality
+      traffic.
+    </li>
+
+    <li>
+      Model coefficients represent associations in the training data and
+      should not be treated as causal effects.
+    </li>
+
+    <li>
+      The baseline is intentionally simple and transparent. Its simplicity
+      makes it useful as a benchmark but also limits the information it can
+      use.
+    </li>
+  </ul>
+
+  <p>
+    The safest interpretation is therefore:
+    <strong>
+      on this dataset and held-out evaluation setup, Logistic Regression
+      measured higher top-of-queue precision than the transparent baseline.
+    </strong>
+    This is directional decision support rather than a guarantee of future
+    performance.
+  </p>
+</section>
+
+
+<section>
+  <h2>7. Ranked Recommendations</h2>
+
+  <ol>
+    <li>
+      <strong>Use the model as a prioritization layer.</strong>
+      Use the predicted ranking to decide which pages deserve human review
+      first rather than automatically refreshing every selected page.
+    </li>
+
+    <li>
+      <strong>Keep the transparent baseline as a benchmark.</strong>
+      The stale-and-visible rule remains easy to understand and provides a
+      useful reference point for future model iterations.
+    </li>
+
+    <li>
+      <strong>Review high-ranked pages for context.</strong>
+      Check whether the traffic is meaningful and whether the page is
+      intentionally evergreen before recommending a refresh.
+    </li>
+
+    <li>
+      <strong>Monitor false positives and false negatives.</strong>
+      These errors can reveal where the ranking system needs better features,
+      labels, or review rules.
+    </li>
+
+    <li>
+      <strong>Revalidate before operational use.</strong>
+      Future versions should be evaluated on new client or time-separated
+      data before being treated as a production decision rule.
+    </li>
+  </ol>
+</section>
+
+
+<section>
+  <h2>8. Reproducibility</h2>
+
+  <p>
+    The analysis artifacts are maintained in the project repository.
+    The capstone notebook mirrors the structure of this research page.
+  </p>
+
+  <ul>
+    <li>
+      <a href="https://github.com/Himanshu-rai-prog/flyrank-ml-internship"
+         target="_blank">
+        GitHub repository
+      </a>
+    </li>
+
+    <li>
+      <a href="https://github.com/Himanshu-rai-prog/flyrank-ml-internship/blob/main/work/notebooks/capstone.ipynb"
+         target="_blank">
+        Capstone notebook
+      </a>
+    </li>
+
+    <li>
+      <a href="https://github.com/Himanshu-rai-prog/flyrank-ml-internship/tree/main/work/notebooks"
+         target="_blank">
+        All analysis notebooks
+      </a>
+    </li>
+  </ul>
+
+  <p>
+    The model work uses a fixed random state of 42 where applicable.
+    The repository contains the supporting notebooks used across the
+    analysis workflow.
+  </p>
+</section>
+
+
+<section>
+  <h2>9. Acknowledgments & Data Credit</h2>
+
+  <p>
+    Built on the <strong>FlyRank ML Internship dataset</strong>.
+  </p>
+
+  <p>
+    Data source:
+    <a href="https://flyrank.ai" target="_blank" rel="noopener">
+      FlyRank AI
+    </a>
+  </p>
+
+  <p>
+    This project was completed as part of the FlyRank AI Internship
+    Machine Learning track.
+  </p>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    Research artifact · Machine Learning · FlyRank AI Internship
+  </p>
+  <p>
+    Built for reproducibility, transparent comparison, and human review.
+  </p>
+</footer>
+
+</body>
+</html>
